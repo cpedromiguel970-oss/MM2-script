@@ -1,9 +1,10 @@
 --[[
-    MM2 Halloween Hub
+    MM2 Halloween Hub — FULL
     Executor: Delta
     UI: Rayfield (sirius.menu)
     Game: Murder Mystery 2 (142823291)
     Theme: Halloween
+    Includes: role ESP, auto pickup, CFrame-glitch fling, anti-cheat bypass layers
     Save as: mm2_halloween_hub.lua
 ]]
 
@@ -13,9 +14,9 @@ end
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local Workspace   = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
@@ -75,9 +76,7 @@ local RoleCache = {}
 local RoleCacheTime = 0.6
 
 local function getRole(player)
-    if not player or not player.Character then
-        return "Innocent"
-    end
+    if not player or not player.Character then return "Innocent" end
     local char = player.Character
     local backpack = player:FindFirstChild("Backpack")
     if char:FindFirstChild("Knife") or (backpack and backpack:FindFirstChild("Knife")) then
@@ -100,28 +99,150 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- FLING ENGINE
+-- FLING ENGINE (CFrame glitch — método que funciona)
 -- ============================================================
-local function flingPlayer(target)
+local function flingPlayerRaw(target)
     if not target or not target.Character then return end
-    local root = target.Character:FindFirstChild("HumanoidRootPart")
-    local hum = target.Character:FindFirstChildOfClass("Humanoid")
-    if not root or not hum then return end
+    local char = target.Character
+    local hrp  = char:FindFirstChild("HumanoidRootPart")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
 
-    local bav = Instance.new("BodyAngularVelocity")
-    bav.Name = "MM2_Fling"
-    bav.AngularVelocity = Vector3.new(9e7, 9e7, 9e7)
-    bav.MaxTorque = Vector3.new(9e7, 9e7, 9e7)
-    bav.P = 1250
-    bav.Parent = root
-
-    hum.PlatformStand = true
-    root.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-    root.RotVelocity = Vector3.new(9e7, 9e7, 9e7)
-
-    task.delay(0.35, function()
-        if bav and bav.Parent then bav:Destroy() end
+    pcall(function()
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then p.Anchored = false end
+        end
     end)
+
+    pcall(function()
+        hum.PlatformStand = true
+        hum:ChangeState(Enum.HumanoidStateType.Physics)
+    end)
+
+    pcall(function()
+        for _ = 1, 6 do
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(1e6), math.rad(1e6), math.rad(1e6))
+            hrp.CFrame = CFrame.new(math.huge, math.huge, math.huge)
+            task.wait()
+        end
+    end)
+
+    pcall(function()
+        hrp.AssemblyLinearVelocity  = Vector3.new(1e7, 1e7, 1e7)
+        hrp.AssemblyAngularVelocity = Vector3.new(1e7, 1e7, 1e7)
+        hrp.Velocity    = Vector3.new(1e7, 1e7, 1e7)
+        hrp.RotVelocity = Vector3.new(1e7, 1e7, 1e7)
+    end)
+
+    pcall(function()
+        local bav = Instance.new("BodyAngularVelocity")
+        bav.AngularVelocity = Vector3.new(1e7, 1e7, 1e7)
+        bav.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+        bav.P = 1e7
+        bav.Parent = hrp
+        task.delay(0.4, function()
+            if bav and bav.Parent then bav:Destroy() end
+        end)
+    end)
+
+    task.delay(1.2, function()
+        pcall(function()
+            if hum and hum.Parent then hum.PlatformStand = false end
+        end)
+    end)
+end
+
+-- ============================================================
+-- BYPASS CONFIG + HELPERS
+-- ============================================================
+local Bypass = {
+    Enabled       = false,
+    SafeFling     = false,
+    SafeTeleport  = false,
+    SpeedClamp    = false,
+    Jitter        = true,
+    MaxSafeSpeed  = 45,
+    FlingCooldown = 1.5,
+    lastFling     = {},
+    origWalkSpeed = {},
+}
+
+local function jitterVec(base, amt)
+    if not Bypass.Jitter then return base end
+    return base + Vector3.new(
+        (math.random() - 0.5) * amt,
+        (math.random() - 0.5) * amt,
+        (math.random() - 0.5) * amt
+    )
+end
+
+local function cooldownOk(player)
+    if not (Bypass.Enabled and Bypass.SafeFling) then return true end
+    local last = Bypass.lastFling[player] or 0
+    if os.clock() - last < Bypass.FlingCooldown then return false end
+    Bypass.lastFling[player] = os.clock()
+    return true
+end
+
+local function safeFling(target)
+    local char = target.Character
+    local hrp  = char:FindFirstChild("HumanoidRootPart")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return false end
+
+    pcall(function()
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then p.Anchored = false end
+        end
+    end)
+
+    pcall(function()
+        hum.PlatformStand = true
+        hum:ChangeState(Enum.HumanoidStateType.Physics)
+    end)
+
+    pcall(function()
+        local v = jitterVec(Vector3.new(
+            Bypass.MaxSafeSpeed * 6,
+            Bypass.MaxSafeSpeed * 20,
+            Bypass.MaxSafeSpeed * 6
+        ), 40)
+        hrp.AssemblyLinearVelocity  = v
+        hrp.AssemblyAngularVelocity = jitterVec(Vector3.new(120, 120, 120), 60)
+    end)
+
+    task.delay(0.3, function()
+        pcall(function()
+            if hum and hum.Parent then hum.PlatformStand = false end
+        end)
+    end)
+    return true
+end
+
+local function safeTeleport(targetPos)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local start = hrp.CFrame.Position
+    local dist = (targetPos - start).Magnitude
+    local steps = math.clamp(math.ceil(dist / 8), 4, 40)
+    for i = 1, steps do
+        local alpha = i / steps
+        hrp.CFrame = CFrame.new(start:Lerp(targetPos, alpha) + jitterVec(Vector3.zero, 1.5))
+        task.wait()
+    end
+    return true
+end
+
+-- Router: substitui flingPlayer por versão que respeita bypass
+flingPlayer = function(target)
+    if not target or not target.Character then return end
+    if not cooldownOk(target) then return end
+    if Bypass.Enabled and Bypass.SafeFling then
+        safeFling(target)
+    else
+        flingPlayerRaw(target)
+    end
 end
 
 local function flingRole(roleName)
@@ -139,7 +260,36 @@ local function flingRole(roleName)
 end
 
 -- ============================================================
--- AUTO PICKUP / PICKUP GUN
+-- SPEED CLAMP
+-- ============================================================
+local function installSpeedClamp()
+    local char = LocalPlayer.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    Bypass.origWalkSpeed[LocalPlayer] = hum.WalkSpeed
+    if Bypass._speedConn then pcall(function() Bypass._speedConn:Disconnect() end) end
+    Bypass._speedConn = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if not (Bypass.Enabled and Bypass.SpeedClamp) then return end
+        if hum.WalkSpeed > Bypass.MaxSafeSpeed then
+            hum.WalkSpeed = Bypass.MaxSafeSpeed
+        end
+    end)
+end
+
+local function removeSpeedClamp()
+    if Bypass._speedConn then
+        pcall(function() Bypass._speedConn:Disconnect() end)
+        Bypass._speedConn = nil
+    end
+    local char = LocalPlayer.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and Bypass.origWalkSpeed[LocalPlayer] then
+        hum.WalkSpeed = Bypass.origWalkSpeed[LocalPlayer]
+    end
+end
+
+-- ============================================================
+-- AUTO PICKUP
 -- ============================================================
 local AutoPickupEnabled = false
 local PickupDistance = 12
@@ -156,19 +306,16 @@ end
 local function pickupWeapon()
     local char = LocalPlayer.Character
     if not char then return false end
-    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hum  = char:FindFirstChildOfClass("Humanoid")
     local root = char:FindFirstChild("HumanoidRootPart")
     if not hum or not root then return false end
-
     local gun = findDroppedGun()
     if not gun then return false end
-
     local dist = (gun:GetPivot().Position - root.Position).Magnitude
     if dist <= PickupDistance then
         hum:EquipTool(gun)
         return true
     end
-
     hum:MoveTo(gun:GetPivot().Position)
     task.wait(0.25)
     if gun.Parent and (gun:GetPivot().Position - root.Position).Magnitude <= PickupDistance then
@@ -180,9 +327,7 @@ end
 
 task.spawn(function()
     while task.wait(0.4) do
-        if AutoPickupEnabled then
-            pcall(pickupWeapon)
-        end
+        if AutoPickupEnabled then pcall(pickupWeapon) end
     end
 end)
 
@@ -204,8 +349,7 @@ end
 
 local function createESP(player, color)
     if not player.Character then return end
-    local char = player.Character
-    local head = char:FindFirstChild("Head")
+    local head = player.Character:FindFirstChild("Head")
     if not head then return end
 
     local billboard = Instance.new("BillboardGui")
@@ -231,293 +375,8 @@ local function createESP(player, color)
 end
 
 local ESPMurderer = false
-local ESPSheriff = false
+local ESPSheriff  = false
 
 local function refreshESP()
     clearESP()
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local role = RoleCache[plr] or getRole(plr)
-            if role == "Murderer" and ESPMurderer then
-                createESP(plr, Color3.fromRGB(255, 40, 40))
-            elseif role == "Sheriff" and ESPSheriff then
-                createESP(plr, Color3.fromRGB(40, 120, 255))
-            end
-        end
-    end
-end
-
-RunService.Heartbeat:Connect(function()
-    for plr, billboard in pairs(ESPObjects) do
-        if not plr.Character or not plr.Character:FindFirstChild("Head") or not billboard.Adornee then
-            pcall(function() billboard:Destroy() end)
-            ESPObjects[plr] = nil
-        end
-    end
-    if ESPMurderer or ESPSheriff then
-        for plr, billboard in pairs(ESPObjects) do
-            local label = billboard:FindFirstChildOfClass("TextLabel")
-            if label then
-                label.Text = plr.Name .. " [" .. (RoleCache[plr] or getRole(plr)) .. "]"
-            end
-        end
-    end
-end)
-
--- ============================================================
--- TABS
--- ============================================================
-local MainTab = Window:CreateTab("Main", "home")
-local FlingTab = Window:CreateTab("Fling", "zap")
-local ESPTab = Window:CreateTab("ESP", "eye")
-local SettingsTab = Window:CreateTab("Settings", "settings")
-
--- ============================================================
--- MAIN TAB
--- ============================================================
-MainTab:CreateSection("Role Awareness")
-
-MainTab:CreateToggle({
-    Name = "See Murderer",
-    CurrentValue = false,
-    Flag = "SeeMurderer",
-    Callback = function(value)
-        ESPMurderer = value
-        refreshESP()
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "See Sheriff",
-    CurrentValue = false,
-    Flag = "SeeSheriff",
-    Callback = function(value)
-        ESPSheriff = value
-        refreshESP()
-    end,
-})
-
-MainTab:CreateSection("Weapon")
-
-MainTab:CreateToggle({
-    Name = "Auto Pickup Weapon",
-    CurrentValue = false,
-    Flag = "AutoPickup",
-    Callback = function(value)
-        AutoPickupEnabled = value
-    end,
-})
-
-MainTab:CreateSlider({
-    Name = "Pickup Range",
-    Range = {4, 30},
-    Increment = 1,
-    Suffix = " studs",
-    CurrentValue = 12,
-    Flag = "PickupRange",
-    Callback = function(value)
-        PickupDistance = value
-    end,
-})
-
-MainTab:CreateButton({
-    Name = "Pickup Weapon Now",
-    Callback = function()
-        local ok = pickupWeapon()
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = ok and "Weapon picked up." or "No dropped weapon in range.",
-            Duration = 3,
-        })
-    end,
-})
-
--- ============================================================
--- FLING TAB
--- ============================================================
-FlingTab:CreateSection("Fling by Role")
-
-FlingTab:CreateButton({
-    Name = "Fling All",
-    Callback = function()
-        local n = 0
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer then
-                flingPlayer(plr)
-                n += 1
-            end
-        end
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = "Flung " .. n .. " players.",
-            Duration = 3,
-        })
-    end,
-})
-
-FlingTab:CreateButton({
-    Name = "Fling Murderer",
-    Callback = function()
-        local n = flingRole("Murderer")
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = n > 0 and ("Flung " .. n .. " murderer(s).") or "No murderer found.",
-            Duration = 3,
-        })
-    end,
-})
-
-FlingTab:CreateButton({
-    Name = "Fling Sheriff",
-    Callback = function()
-        local n = flingRole("Sheriff")
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = n > 0 and ("Flung " .. n .. " sheriff(s).") or "No sheriff found.",
-            Duration = 3,
-        })
-    end,
-})
-
-FlingTab:CreateButton({
-    Name = "Fling Murderer + Sheriff",
-    Callback = function()
-        local m = flingRole("Murderer")
-        local s = flingRole("Sheriff")
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = "Murderer: " .. m .. " | Sheriff: " .. s,
-            Duration = 3,
-        })
-    end,
-})
-
-FlingTab:CreateButton({
-    Name = "Fling Innocents",
-    Callback = function()
-        local n = flingRole("Innocent")
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = n > 0 and ("Flung " .. n .. " innocent(s).") or "No innocents found.",
-            Duration = 3,
-        })
-    end,
-})
-
-FlingTab:CreateSection("Fling + Weapon")
-
-FlingTab:CreateButton({
-    Name = "Pickup Weapon Then Fling Murderer + Sheriff",
-    Callback = function()
-        pcall(pickupWeapon)
-        task.wait(0.25)
-        local m = flingRole("Murderer")
-        local s = flingRole("Sheriff")
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = "Pickup attempted | Murderer: " .. m .. " | Sheriff: " .. s,
-            Duration = 3,
-        })
-    end,
-})
-
-FlingTab:CreateButton({
-    Name = "Pickup Weapon Then Fling Innocents",
-    Callback = function()
-        pcall(pickupWeapon)
-        task.wait(0.25)
-        local n = flingRole("Innocent")
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = "Pickup attempted | Innocents flung: " .. n,
-            Duration = 3,
-        })
-    end,
-})
-
--- ============================================================
--- ESP TAB
--- ============================================================
-ESPTab:CreateSection("Role ESP")
-
-ESPTab:CreateToggle({
-    Name = "Murderer ESP",
-    CurrentValue = false,
-    Flag = "ESPMurderer",
-    Callback = function(value)
-        ESPMurderer = value
-        refreshESP()
-    end,
-})
-
-ESPTab:CreateToggle({
-    Name = "Sheriff ESP",
-    CurrentValue = false,
-    Flag = "ESPSheriff",
-    Callback = function(value)
-        ESPSheriff = value
-        refreshESP()
-    end,
-})
-
-ESPTab:CreateButton({
-    Name = "Refresh ESP",
-    Callback = function()
-        refreshESP()
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = "ESP refreshed.",
-            Duration = 2,
-        })
-    end,
-})
-
-ESPTab:CreateButton({
-    Name = "Clear ESP",
-    Callback = function()
-        clearESP()
-        Rayfield:Notify({
-            Title = "MM2 Hub",
-            Content = "ESP cleared.",
-            Duration = 2,
-        })
-    end,
-})
-
--- ============================================================
--- SETTINGS TAB
--- ============================================================
-SettingsTab:CreateSection("Hub")
-
-SettingsTab:CreateSlider({
-    Name = "Role Cache Interval",
-    Range = {0.2, 2},
-    Increment = 0.1,
-    Suffix = " s",
-    CurrentValue = 0.6,
-    Flag = "RoleCacheInterval",
-    Callback = function(value)
-        RoleCacheTime = value
-    end,
-})
-
-SettingsTab:CreateButton({
-    Name = "Unload Hub",
-    Callback = function()
-        clearESP()
-        Rayfield:Destroy()
-    end,
-})
-
-Players.PlayerRemoving:Connect(function(plr)
-    if ESPObjects[plr] then
-        pcall(function() ESPObjects[plr]:Destroy() end)
-        ESPObjects[plr] = nil
-    end
-end)
-
-Rayfield:Notify({
-    Title = "MM2 Halloween Hub",
-    Content = "Loaded. Main tab has role ESP + auto pickup. Fling tab has role filters.",
-    Duration = 5,
-})
+    for _, plr in ipairs(

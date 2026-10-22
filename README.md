@@ -379,4 +379,274 @@ local ESPSheriff  = false
 
 local function refreshESP()
     clearESP()
-    for _, plr in ipairs(
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local role = RoleCache[plr] or getRole(plr)
+            if role == "Murderer" and ESPMurderer then
+                createESP(plr, Color3.fromRGB(255, 40, 40))
+            elseif role == "Sheriff" and ESPSheriff then
+                createESP(plr, Color3.fromRGB(40, 120, 255))
+            end
+        end
+    end
+end
+
+RunService.Heartbeat:Connect(function()
+    for plr, billboard in pairs(ESPObjects) do
+        if not plr.Character or not plr.Character:FindFirstChild("Head") or not billboard.Adornee then
+            pcall(function() billboard:Destroy() end)
+            ESPObjects[plr] = nil
+        end
+    end
+    if ESPMurderer or ESPSheriff then
+        for plr, billboard in pairs(ESPObjects) do
+            local label = billboard:FindFirstChildOfClass("TextLabel")
+            if label then
+                label.Text = plr.Name .. " [" .. (RoleCache[plr] or getRole(plr)) .. "]"
+            end
+        end
+    end
+end)
+
+-- ============================================================
+-- TABS
+-- ============================================================
+local MainTab     = Window:CreateTab("Main", "home")
+local FlingTab    = Window:CreateTab("Fling", "zap")
+local ESPTab      = Window:CreateTab("ESP", "eye")
+local BypassTab   = Window:CreateTab("Bypass", "shield")
+local SettingsTab = Window:CreateTab("Settings", "settings")
+
+-- ============================================================
+-- MAIN TAB
+-- ============================================================
+MainTab:CreateSection("Role Awareness")
+
+MainTab:CreateToggle({
+    Name = "See Murderer",
+    CurrentValue = false,
+    Flag = "SeeMurderer",
+    Callback = function(v) ESPMurderer = v; refreshESP() end,
+})
+
+MainTab:CreateToggle({
+    Name = "See Sheriff",
+    CurrentValue = false,
+    Flag = "SeeSheriff",
+    Callback = function(v) ESPSheriff = v; refreshESP() end,
+})
+
+MainTab:CreateSection("Weapon")
+
+MainTab:CreateToggle({
+    Name = "Auto Pickup Weapon",
+    CurrentValue = false,
+    Flag = "AutoPickup",
+    Callback = function(v) AutoPickupEnabled = v end,
+})
+
+MainTab:CreateSlider({
+    Name = "Pickup Range",
+    Range = {4, 30},
+    Increment = 1,
+    Suffix = " studs",
+    CurrentValue = 12,
+    Flag = "PickupRange",
+    Callback = function(v) PickupDistance = v end,
+})
+
+MainTab:CreateButton({
+    Name = "Pickup Weapon Now",
+    Callback = function()
+        local ok = pickupWeapon()
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = ok and "Weapon picked up." or "No dropped weapon in range.",
+            Duration = 3,
+        })
+    end,
+})
+
+-- ============================================================
+-- FLING TAB
+-- ============================================================
+FlingTab:CreateSection("Fling by Role")
+
+FlingTab:CreateButton({
+    Name = "Fling All",
+    Callback = function()
+        local n = 0
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                flingPlayer(plr)
+                n += 1
+            end
+        end
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = "Flung " .. n .. " players.",
+            Duration = 3,
+        })
+    end,
+})
+
+FlingTab:CreateButton({
+    Name = "Fling Murderer",
+    Callback = function()
+        local n = flingRole("Murderer")
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = n > 0 and ("Flung " .. n .. " murderer(s).") or "No murderer found.",
+            Duration = 3,
+        })
+    end,
+})
+
+FlingTab:CreateButton({
+    Name = "Fling Sheriff",
+    Callback = function()
+        local n = flingRole("Sheriff")
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = n > 0 and ("Flung " .. n .. " sheriff(s).") or "No sheriff found.",
+            Duration = 3,
+        })
+    end,
+})
+
+FlingTab:CreateButton({
+    Name = "Fling Murderer + Sheriff",
+    Callback = function()
+        local m = flingRole("Murderer")
+        local s = flingRole("Sheriff")
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = "Murderer: " .. m .. " | Sheriff: " .. s,
+            Duration = 3,
+        })
+    end,
+})
+
+FlingTab:CreateButton({
+    Name = "Fling Innocents",
+    Callback = function()
+        local n = flingRole("Innocent")
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = n > 0 and ("Flung " .. n .. " innocent(s).") or "No innocents found.",
+            Duration = 3,
+        })
+    end,
+})
+
+FlingTab:CreateSection("Fling + Weapon")
+
+FlingTab:CreateButton({
+    Name = "Pickup Weapon Then Fling Murderer + Sheriff",
+    Callback = function()
+        pcall(pickupWeapon)
+        task.wait(0.25)
+        local m = flingRole("Murderer")
+        local s = flingRole("Sheriff")
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = "Pickup attempted | Murderer: " .. m .. " | Sheriff: " .. s,
+            Duration = 3,
+        })
+    end,
+})
+
+FlingTab:CreateButton({
+    Name = "Pickup Weapon Then Fling Innocents",
+    Callback = function()
+        pcall(pickupWeapon)
+        task.wait(0.25)
+        local n = flingRole("Innocent")
+        Rayfield:Notify({
+            Title = "MM2 Hub",
+            Content = "Pickup attempted | Innocents flung: " .. n,
+            Duration = 3,
+        })
+    end,
+})
+
+-- ============================================================
+-- ESP TAB
+-- ============================================================
+ESPTab:CreateSection("Role ESP")
+
+ESPTab:CreateToggle({
+    Name = "Murderer ESP",
+    CurrentValue = false,
+    Flag = "ESPMurderer",
+    Callback = function(v) ESPMurderer = v; refreshESP() end,
+})
+
+ESPTab:CreateToggle({
+    Name = "Sheriff ESP",
+    CurrentValue = false,
+    Flag = "ESPSheriff",
+    Callback = function(v) ESPSheriff = v; refreshESP() end,
+})
+
+ESPTab:CreateButton({
+    Name = "Refresh ESP",
+    Callback = function()
+        refreshESP()
+        Rayfield:Notify({ Title = "MM2 Hub", Content = "ESP refreshed.", Duration = 2 })
+    end,
+})
+
+ESPTab:CreateButton({
+    Name = "Clear ESP",
+    Callback = function()
+        clearESP()
+        Rayfield:Notify({ Title = "MM2 Hub", Content = "ESP cleared.", Duration = 2 })
+    end,
+})
+
+-- ============================================================
+-- BYPASS TAB
+-- ============================================================
+BypassTab:CreateSection("Master")
+
+local statusLabel
+
+BypassTab:CreateToggle({
+    Name = "Enable Anti-Cheat Bypass",
+    CurrentValue = false,
+    Flag = "BypassMaster",
+    Callback = function(v)
+        Bypass.Enabled = v
+        if v then installSpeedClamp() else removeSpeedClamp() end
+        if statusLabel then
+            statusLabel:Set(v and "Bypass: ON — camadas ativas" or "Bypass: OFF — comportamento original")
+        end
+        Rayfield:Notify({
+            Title = "MM2 Bypass",
+            Content = v and "Camadas de segurança ativadas." or "Bypass desligado.",
+            Duration = 3,
+        })
+    end,
+})
+
+statusLabel = BypassTab:CreateLabel("Bypass: OFF — comportamento original")
+
+BypassTab:CreateSection("Layers")
+
+BypassTab:CreateToggle({
+    Name = "Safe Fling (clamp + jitter + cooldown)",
+    CurrentValue = false,
+    Flag = "BypassSafeFling",
+    Callback = function(v) Bypass.SafeFling = v end,
+})
+
+BypassTab:CreateToggle({
+    Name = "Safe Teleport (stepped)",
+    CurrentValue = false,
+    Flag = "BypassSafeTP",
+    Callback = function(v) Bypass.SafeTeleport = v end,
+})
+
+BypassTab:CreateToggle({
+    Name = "Speed 
